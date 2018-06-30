@@ -10,8 +10,8 @@
 // and your header search path must make it accessible to the module's files.
 #include "AppConfig.h"
 
-#include "../utility/juce_CheckSettingMacros.h"
-#include "../../juce_core/system/juce_TargetPlatform.h" // for JUCE_LINUX
+#include <utility/juce_CheckSettingMacros.h>
+#include <juce_core/system/juce_TargetPlatform.h> // for JUCE_LINUX
 
 
 #if JucePlugin_Build_LV2
