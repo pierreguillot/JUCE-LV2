@@ -420,7 +420,8 @@ const String makePluginFile (AudioProcessor* const filter, const int maxNumInput
     }
 
     // Parameters
-    for (int i=0; i < filter->getNumParameters(); ++i)
+    auto const& params = filter->getParameters();
+    for (int i = 0; i < params.size(); ++i)
     {
         if (i == 0)
             text += "    lv2:port [\n";
@@ -429,28 +430,29 @@ const String makePluginFile (AudioProcessor* const filter, const int maxNumInput
 
         text += "        a lv2:InputPort, lv2:ControlPort ;\n";
         text += "        lv2:index " + String(portIndex++) + " ;\n";
-        text += "        lv2:symbol \"" + nameToSymbol(filter->getParameterName(i), i) + "\" ;\n";
+        String const paramName = params[i]->getName(1000);
+        text += "        lv2:symbol \"" + nameToSymbol(paramName, i) + "\" ;\n";
 
-        if (filter->getParameterName(i).isNotEmpty())
-            text += "        lv2:name \"" + filter->getParameterName(i) + "\" ;\n";
+        if (paramName.isNotEmpty())
+            text += "        lv2:name \"" + paramName + "\" ;\n";
         else
             text += "        lv2:name \"Port " + String(i+1) + "\" ;\n";
 
-        text += "        lv2:default " + String::formatted("%f", safeParamValue(filter->getParameter(i))) + " ;\n";
+        text += "        lv2:default " + String::formatted("%f", safeParamValue(params[i]->getDefaultValue())) + " ;\n";
         text += "        lv2:minimum 0.0 ;\n";
         text += "        lv2:maximum 1.0 ;\n";
 
-        if (! filter->isParameterAutomatable(i))
+        if (! params[i]->isAutomatable())
             text += "        lv2:portProperty <" LV2_PORT_PROPS__expensive "> ;\n";
 
-        if (i+1 == filter->getNumParameters())
+        if (i+1 == params.size())
             text += "    ] ;\n\n";
         else
             text += "    ] ,\n";
     }
 
     text += "    doap:name \"" + filter->getName() + "\" ;\n";
-    text += "    doap:maintainer [ foaf:name \"" JucePlugin_Manufacturer "\" ] .\n";
+    text += "    doap:maintainer [ foaf:name \"" + String(JucePlugin_ManufacturerCode) + "\" ] .\n";
 
     return text;
 }
@@ -504,7 +506,7 @@ const String makePresetsFile (AudioProcessor* const filter)
         preset += "            rdf:value \"" + chunkString + "\"^^xsd:base64Binary ;\n";
         preset += "        ] ;\n";
  #endif
-        if (filter->getNumParameters() == 0)
+        if (filter->getParameters().size() == 0)
         {
             preset += "    ] .\n\n";
             continue;
@@ -515,21 +517,30 @@ const String makePresetsFile (AudioProcessor* const filter)
 
         // Port values
         usedSymbols.clear();
-
-        for (int j=0; j < filter->getNumParameters(); ++j)
+        auto const& params = filter->getParameters();
+        for (int j = 0; j < params.size(); ++j)
         {
-              if (j == 0)
+            if (j == 0)
+            {
                 preset += "    lv2:port [\n";
+            }
             else
+            {
                 preset += "    [\n";
+            }
+            
+            String const paramName = params[i]->getName(1000);
+            preset += "        lv2:symbol \"" + nameToSymbol(paramName, j) + "\" ;\n";
+            preset += "        pset:value " + String::formatted("%f", safeParamValue(params[i]->getValue())) + " ;\n";
 
-            preset += "        lv2:symbol \"" + nameToSymbol(filter->getParameterName(j), j) + "\" ;\n";
-            preset += "        pset:value " + String::formatted("%f", safeParamValue(filter->getParameter(j))) + " ;\n";
-
-            if (j+1 == filter->getNumParameters())
+            if (j + 1 == params.size())
+            {
                 preset += "    ] ";
+            }
             else
+            {
                 preset += "    ] ,\n";
+            }
         }
         preset += ".\n\n";
 
@@ -1215,10 +1226,11 @@ public:
 
         portAudioIns.insertMultiple (0, nullptr, numInChans);
         portAudioOuts.insertMultiple (0, nullptr, numOutChans);
-        portControls.insertMultiple (0, nullptr, filter->getNumParameters());
-
-        for (int i=0; i < filter->getNumParameters(); ++i)
-            lastControlValues.add (filter->getParameter(i));
+        const auto& params = filter->getParameters();
+        portControls.insertMultiple (0, nullptr, params.size());
+        
+        for (int i = 0; i < params.size(); ++i)
+            lastControlValues.add (params[i]->getValue());
 
         curPosInfo.resetToDefault();
 
@@ -1367,7 +1379,7 @@ public:
             }
         }
 
-        for (int i=0; i < filter->getNumParameters(); ++i)
+        for (int i = 0; i < filter->getParameters().size(); ++i)
         {
             if (portId == index++)
             {
@@ -1425,7 +1437,7 @@ public:
         // Check for updated parameters
         {
             float curValue;
-
+            auto const& params = filter->getParameters();
             for (int i = 0; i < portControls.size(); ++i)
             {
                 if (portControls[i] != nullptr)
@@ -1434,7 +1446,7 @@ public:
 
                     if (lastControlValues[i] != curValue)
                     {
-                        filter->setParameter (i, curValue);
+                        params[i]->setValue(curValue);
                         lastControlValues.setUnchecked (i, curValue);
                     }
                 }
@@ -1807,9 +1819,10 @@ public:
             filter->setCurrentProgram(realProgram);
 
             // update input control ports now
+            auto const& params = filter->getParameters();
             for (int i = 0; i < portControls.size(); ++i)
             {
-                float value = filter->getParameter(i);
+                float value = params[i]->getValue();
 
                 if (portControls[i] != nullptr)
                     *portControls[i] = value;
